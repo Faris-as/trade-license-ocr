@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image, ImageEnhance
 from typing import Dict, List, Any, Tuple
 import os
+import threading
 import easyocr
 
 # ============================================================================
@@ -16,6 +17,7 @@ import easyocr
 
 # Initialize EasyOCR reader (loaded once at startup)
 _reader = None
+_reader_lock = threading.Lock()  # two requests may race the lazy init otherwise
 
 
 def get_ocr_reader() -> easyocr.Reader:
@@ -31,21 +33,22 @@ def get_ocr_reader() -> easyocr.Reader:
     """
     global _reader
     
-    if _reader is None:
-        print("🔤 Initializing EasyOCR reader (English + Arabic)...")
-        print("   ⏳ This takes 10-20 seconds on first run...")
-        
-        # Initialize with English and Arabic
-        # shortcut: OCR_GPU env flag instead of auto-detect; fine for this
-        # single-purpose deploys. Upgrade path: torch.cuda.is_available()
-        _reader = easyocr.Reader(
-            ['en', 'ar'],  # Languages
-            gpu=os.getenv("OCR_GPU", "true").lower() != "false",
-            verbose=False  # Don't print detailed logs
-        )
-        
-        print("   ✅ OCR reader initialized!")
-    
+    with _reader_lock:
+        if _reader is None:
+            print("🔤 Initializing EasyOCR reader (English + Arabic)...")
+            print("   ⏳ This takes 10-20 seconds on first run...")
+
+            # Initialize with English and Arabic
+            # shortcut: OCR_GPU env flag instead of auto-detect; fine for this
+            # single-purpose deploys. Upgrade path: torch.cuda.is_available()
+            _reader = easyocr.Reader(
+                ['en', 'ar'],  # Languages
+                gpu=os.getenv("OCR_GPU", "true").lower() != "false",
+                verbose=False  # Don't print detailed logs
+            )
+
+            print("   ✅ OCR reader initialized!")
+
     return _reader
 
 

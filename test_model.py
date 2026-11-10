@@ -9,37 +9,11 @@ from app.services.ocr_service import load_model, run_inference, get_model_info
 from PIL import Image, ImageDraw
 import numpy as np
 
-def create_dummy_image() -> str:
-    """
-    Create a dummy test image if you don't have a real license.
-    
-    Returns:
-        Path to created dummy image
-    """
-    print("📸 Creating dummy test image...")
-    
-    # Create a simple image (1000x1414 - typical A4 size in pixels)
-    width, height = 1000, 1414
-    image = Image.new('RGB', (width, height), color='white')
-    draw = ImageDraw.Draw(image)
-    
-    # Draw some rectangles and text to simulate a license
-    draw.rectangle([50, 50, 950, 200], fill='lightblue')
-    draw.rectangle([50, 250, 950, 400], fill='lightgray')
-    draw.rectangle([50, 450, 950, 600], fill='lightgreen')
-    
-    # Save to uploads folder
-    dummy_path = Path("uploads") / "dummy_license.jpg"
-    dummy_path.parent.mkdir(exist_ok=True)
-    image.save(dummy_path)
-    
-    print(f"   ✅ Dummy image created: {dummy_path}")
-    return str(dummy_path)
-
-
 def main():
     """
     Main test function.
+    Expects a sample license image at uploads/trade_license_sample.jpg
+    and the model at ml_models/roboflow_model/model.pt.
     """
     print("\n" + "=" * 60)
     print("🧪 TESTING MODEL LOADING AND INFERENCE")

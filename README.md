@@ -10,7 +10,7 @@
     <a href="#-features"><img src="https://img.shields.io/badge/Model-Roboflow-6706CE?style=for-the-badge&logo=roboflow" alt="Roboflow"></a>
   </p>
   <p align="center">
-    <img src="https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
+    <img src="https://img.shields.io/badge/python-3.10--3.11-3776AB?logo=python&logoColor=white" alt="Python 3.10–3.11">
     <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
     <img src="https://img.shields.io/badge/language-Python%20100%25-blue" alt="Python 100%">
     <img src="https://img.shields.io/badge/framework-FastAPI-009688" alt="FastAPI">
@@ -146,28 +146,25 @@ trade-license-ocr/
 │   │
 │   └── utils/                        # Utilities
 │       ├── __init__.py
-│       └── file_handler.py           # File upload, save, size check, cleanup
+│       └── file_handler.py           # File upload, save, size check, cleanup, PDF render
 │
-├── ml_models/                        # Machine learning models
-│   ├── README.md
+├── ml_models/                        # Machine learning models (weights NOT in the repo)
+│   ├── README.md                     # Where to put model.pt
 │   └── roboflow_model/
-│       └── model.pt                  # YOLOv8 weights (~22MB, trained via Roboflow)
+│       └── model.pt                  # YOLOv8 weights — add your Roboflow export (~22MB)
 │
-├── uploads/                          # Runtime upload directory
-│   ├── debug_crops/                  # Saved field crop images for debugging
-│   ├── dummy_license.jpg             # Test image for development
-│   ├── trade_license_sample.jpg      # Sample trade license image
-│   ├── ocr_results.json              # Sample raw OCR output
-│   └── final_output.json             # Sample structured output
+├── tests/                            # pytest suite (parser logic; no model needed)
 │
-├── frontend/                         # Frontend application (submodule)
+├── frontend/                         # Frontend application (planned)
 │
-├── run.py                            # Server entry point (uvicorn launcher)
-├── test_model.py                     # Model loading & inference test
-├── test_ocr_pipeline.py              # End-to-end OCR pipeline test
-├── test_parser.py                    # Parser service test (YOLO → OCR → Parse)
-└── requirements.txt                  # Pinned Python dependencies
+├── run.py                            # Server entry point (dev launcher)
+├── test_model.py                     # Model loading & inference harness
+├── test_ocr_pipeline.py              # End-to-end OCR pipeline harness
+├── pyproject.toml                    # Package metadata, pinned deps, pytest config
+└── LICENSE                           # MIT license
 ```
+
+> **Note:** `uploads/` is a gitignored runtime directory created on demand; keep real license scans out of the repo.
 
 ---
 
@@ -191,7 +188,7 @@ trade-license-ocr/
 
 ### Prerequisites
 
-- **Python** 3.10+
+- **Python** 3.10 or 3.11 (pinned deps ship no wheels for newer versions)
 - **pip** for package management
 - **Git** for cloning
 
@@ -199,18 +196,18 @@ trade-license-ocr/
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Fairoos-palakkal/trade-license-ocr.git
+git clone https://github.com/Faris-as/trade-license-ocr.git
 cd trade-license-ocr
 
 # 2. Create a virtual environment
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# 3. Install dependencies
-pip install -r requirements.txt
+# 3. Install dependencies (editable + dev extras for pytest)
+pip install -e ".[dev]"
 ```
 
-> **Note:** The YOLOv8 model weights (`ml_models/roboflow_model/model.pt`) are included in the repository (~22MB). No separate download needed.
+> **Note:** The YOLOv8 model weights (`ml_models/roboflow_model/model.pt`) are **not** in the repository (~22MB, they are gitignored). Export your model from Roboflow and place it at that path — see `ml_models/README.md`.
 
 ### Run the Server
 
@@ -346,32 +343,35 @@ The YOLOv8 model is trained to detect the following field regions on Abu Dhabi t
 
 ## 🧪 Testing
 
-The project includes three standalone test scripts for verifying each stage of the pipeline:
+### Automated (no model weights needed)
 
 ```bash
-# Test 1: Model loading and inference
-python test_model.py
-
-# Test 2: Complete OCR pipeline (YOLO → Crop → OCR)
-python test_ocr_pipeline.py
-
-# Test 3: Full pipeline with parser (YOLO → OCR → Parse → Structure)
-python test_parser.py
+pytest tests/          # parser logic: cleaning, dates, owners, validation
 ```
 
-| Test Script | What it Tests | Pipeline Stage |
-|-------------|--------------|----------------|
-| `test_model.py` | Model loading, dummy image inference | Detection only |
-| `test_ocr_pipeline.py` | YOLO detection → field cropping → OCR extraction | Detection + OCR |
-| `test_parser.py` | Complete pipeline → cleaning → structuring → JSON output | End-to-end |
+### Manual harnesses (need `model.pt` + a sample license image)
 
-> **Tip:** Sample images are included in `uploads/` for testing. Replace `trade_license_sample.jpg` with your own Abu Dhabi trade license image for real-world testing.
+```bash
+# Detection only
+python test_model.py
+
+# YOLO → Crop → OCR
+python test_ocr_pipeline.py
+```
+
+| Script | What it Tests | Pipeline Stage |
+|-------------|----------------|----------------|
+| `tests/test_parser.py` | Cleaning, date parsing, owner structuring, validation — asserted | Parse (pure logic) |
+| `test_model.py` | Model loading, sample image inference | Detection |
+| `test_ocr_pipeline.py` | YOLO detection → field cropping → OCR extraction | Detection + OCR |
+
+> **Tip:** Sample license scans are gitignored — bring your own image and drop it in `uploads/` for harness runs.
 
 ---
 
 ## 🖥️ Frontend
 
-The project includes a frontend application (referenced as a submodule) that provides a web interface for:
+A frontend application is planned (not included yet) for:
 
 - 📤 Uploading trade license images via drag-and-drop
 - 📊 Viewing extracted structured data in a clean format

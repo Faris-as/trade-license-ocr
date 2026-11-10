@@ -3,7 +3,7 @@ OCR Service - Handles model loading and inference
 This service manages the Roboflow model for Trade License OCR
 """
 
-import os
+import threading
 from pathlib import Path
 from typing import Dict, List, Any
 import torch
@@ -17,6 +17,7 @@ import numpy as np
 
 # This will store the loaded model (loaded once at startup)
 _model = None
+_model_lock = threading.Lock()  # two requests may race the lazy load otherwise
 
 
 # ============================================================================
@@ -46,39 +47,44 @@ def load_model() -> YOLO:
         print("✅ Model already loaded, using cached version")
         return _model
     
-    # Get the project root directory
-    # This file is in: app/services/ocr_service.py
-    # Project root is: ../../ (two levels up)
-    current_file = Path(__file__)
-    project_root = current_file.parent.parent.parent
+    with _model_lock:
+        # re-check inside the lock: first thread may have finished loading
+        if _model is not None:
+            return _model
     
-    # Build path to model file
-    model_path = project_root / "ml_models" / "roboflow_model" / "model.pt"
-    
-    print(f"🔍 Looking for model at: {model_path}")
-    
-    # Check if model file exists
-    if not model_path.exists():
-        error_msg = f"❌ Model file not found at: {model_path}"
-        print(error_msg)
-        raise FileNotFoundError(error_msg)
-    
-    print(f"📦 Loading model from: {model_path}")
-    
-    try:
-        # Load the model using Ultralytics YOLO
-        _model = YOLO(str(model_path))
-        
-        print("✅ Model loaded successfully!")
-        print(f"   Model type: {type(_model)}")
-        print(f"   Device: {_model.device}")
-        
-        return _model
-        
-    except Exception as e:
-        error_msg = f"❌ Error loading model: {str(e)}"
-        print(error_msg)
-        raise RuntimeError(error_msg)
+        # Get the project root directory
+        # This file is in: app/services/ocr_service.py
+        # Project root is: ../../ (two levels up)
+        current_file = Path(__file__)
+        project_root = current_file.parent.parent.parent
+
+        # Build path to model file
+        model_path = project_root / "ml_models" / "roboflow_model" / "model.pt"
+
+        print(f"🔍 Looking for model at: {model_path}")
+
+        # Check if model file exists
+        if not model_path.exists():
+            error_msg = f"❌ Model file not found at: {model_path}"
+            print(error_msg)
+            raise FileNotFoundError(error_msg)
+
+        print(f"📦 Loading model from: {model_path}")
+
+        try:
+            # Load the model using Ultralytics YOLO
+            _model = YOLO(str(model_path))
+
+            print("✅ Model loaded successfully!")
+            print(f"   Model type: {type(_model)}")
+            print(f"   Device: {_model.device}")
+
+            return _model
+
+        except Exception as e:
+            error_msg = f"❌ Error loading model: {str(e)}"
+            print(error_msg)
+            raise RuntimeError(error_msg)
 
 
 # ============================================================================
@@ -221,38 +227,6 @@ def run_inference(image_path: str, confidence_threshold: float = 0.25) -> List[D
     print("=" * 60 + "\n")
     
     return detections
-
-
-# ============================================================================
-# INFERENCE WITH OCR TEXT EXTRACTION (if your model includes OCR)
-# ============================================================================
-
-def run_inference_with_ocr(image_path: str) -> Dict[str, Any]:
-    """
-    Run inference and extract text from detected regions.
-    
-    If your Roboflow model includes OCR (text recognition),
-    this function will extract the actual text content.
-    
-    Args:
-        image_path: Path to image file
-        
-    Returns:
-        Dictionary with detections and extracted text
-    """
-    # Get detections
-    detections = run_inference(image_path)
-    
-    # If your model has OCR capabilities, text will be in results
-    # This depends on how you trained your Roboflow model
-    
-    result = {
-        'total_detections': len(detections),
-        'detections': detections,
-        'image_path': image_path
-    }
-    
-    return result
 
 
 # ============================================================================

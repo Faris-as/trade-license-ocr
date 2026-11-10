@@ -359,7 +359,7 @@ def map_fields(ocr_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     license_text = get_field_text(['license_number', 'license_no', 'licence_number'])
     if license_text:
         output['license_number'] = clean_license_number(license_text)
-        print(f"   ✅ License Number: {output['license_number']}")
+        print("   ✅ License Number: found")  # value omitted from logs (PII)
     else:
         print(f"   ⚠️  License Number: Not found")
     
@@ -370,7 +370,7 @@ def map_fields(ocr_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     ])
     if company_text:
         output['company_name'] = clean_company_name(company_text)
-        print(f"   ✅ Company Name: {output['company_name']}")
+        print("   ✅ Company Name: found")
     else:
         print(f"   ⚠️  Company Name: Not found")
     
@@ -381,7 +381,7 @@ def map_fields(ocr_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     ])
     if est_date_text:
         output['establishment_date'] = parse_date(est_date_text)
-        print(f"   ✅ Establishment Date: {output['establishment_date']}")
+        print("   ✅ Establishment Date: found")
     else:
         print(f"   ⚠️  Establishment Date: Not found")
     
@@ -392,7 +392,7 @@ def map_fields(ocr_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     ])
     if expiry_text:
         output['expiry_date'] = parse_date(expiry_text)
-        print(f"   ✅ Expiry Date: {output['expiry_date']}")
+        print("   ✅ Expiry Date: found")
     else:
         print(f"   ⚠️  Expiry Date: Not found")
     
@@ -403,7 +403,7 @@ def map_fields(ocr_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     ])
     if manager_text:
         output['manager_name'] = clean_person_name(manager_text)
-        print(f"   ✅ Manager Name: {output['manager_name']}")
+        print("   ✅ Manager Name: found")
     else:
         print(f"   ⚠️  Manager Name: Not found")
     
@@ -412,8 +412,6 @@ def map_fields(ocr_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     if owners:
         output['owners'] = owners
         print(f"   ✅ Owners: {len(owners)} found")
-        for i, owner in enumerate(owners, 1):
-            print(f"      {i}. {owner['name']} ({owner['share_percentage']})")
     else:
         print(f"   ⚠️  Owners: Not found")
     
@@ -519,19 +517,15 @@ def process_and_structure(ocr_results: Dict[str, Dict[str, Any]]) -> Dict[str, A
     print("✔️  Validating parsed data...")
     validated_data = validate_parsed_data(structured_data)
     
-    # Print validation results
+    # Print validation results (statuses only; details go to the API response)
     validation = validated_data['validation']
     if validation['is_valid']:
         print("   ✅ Data is valid")
     else:
-        print("   ❌ Data has errors:")
-        for error in validation['errors']:
-            print(f"      - {error}")
+        print(f"   ❌ Data invalid: {len(validation['errors'])} error(s)")
     
     if validation['warnings']:
-        print("   ⚠️  Warnings:")
-        for warning in validation['warnings']:
-            print(f"      - {warning}")
+        print(f"   ⚠️  Warnings: {len(validation['warnings'])}")
     
     print("=" * 60 + "\n")
     
