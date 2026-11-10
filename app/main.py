@@ -1,15 +1,55 @@
-"""""
+"""
 FastAPI Application - Trade License OCR System
 This is the main entry point for the API.
 """
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from datetime import datetime
 import sys
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 # Import routes
 from app.api.routes import router as ocr_router
+
+
+# ============================================================================
+# LIFESPAN - startup/shutdown context (replaces deprecated on_event hooks)
+# ============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Runs once at startup and once at shutdown.
+
+    Startup: loads the YOLO model (so the first request isn't slow).
+    Shutdown: reserved for closing connections / resource cleanup.
+    """
+    print("=" * 60)
+    print("🚀 Trade License OCR API Starting...")
+    print("=" * 60)
+    print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"🐍 Python version: {sys.version.split()[0]}")
+    print(f"📚 Swagger UI: http://localhost:8000/docs")
+    print(f"📖 ReDoc: http://localhost:8000/redoc")
+    print("=" * 60)
+
+    print("\n🔧 Initializing OCR services...")
+    try:
+        from app.services.ocr_service import load_model
+        load_model()
+        print("✅ OCR model loaded successfully\n")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not pre-load model: {str(e)}\n")
+
+    yield
+
+    print("\n" + "=" * 60)
+    print("🛑 Trade License OCR API Shutting Down...")
+    print(f"📅 Stopped at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
+
 
 # ============================================================================
 # CREATE FASTAPI APPLICATION
@@ -21,6 +61,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",      # Swagger UI location
     redoc_url="/redoc",    # Alternative documentation
+    lifespan=lifespan,
 )
 
 # ============================================================================
@@ -45,53 +86,6 @@ app.add_middleware(
 # Include OCR routes
 app.include_router(ocr_router)
 
-# ============================================================================
-# STARTUP EVENT - Runs when server starts
-# ============================================================================
-
-@app.on_event("startup")
-async def startup_event():
-    """
-    This function runs once when the server starts.
-    Use it for:
-    - Loading ML models
-    - Initializing services
-    - Setting up connections
-    """
-    print("=" * 60)
-    print("🚀 Trade License OCR API Starting...")
-    print("=" * 60)
-    print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"🐍 Python version: {sys.version.split()[0]}")
-    print(f"📚 Swagger UI: http://localhost:8000/docs")
-    print(f"📖 ReDoc: http://localhost:8000/redoc")
-    print("=" * 60)
-    
-    # Pre-load the OCR model (so first request isn't slow)
-    print("\n🔧 Initializing OCR services...")
-    try:
-        from app.services.ocr_service import load_model
-        load_model()
-        print("✅ OCR model loaded successfully\n")
-    except Exception as e:
-        print(f"⚠️  Warning: Could not pre-load model: {str(e)}\n")
-
-# ============================================================================
-# SHUTDOWN EVENT - Runs when server stops
-# ============================================================================
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """
-    This function runs once when the server stops.
-    Use it for:
-    - Closing connections
-    - Cleaning up resources
-    """
-    print("\n" + "=" * 60)
-    print("🛑 Trade License OCR API Shutting Down...")
-    print(f"📅 Stopped at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
 
 # ============================================================================
 # ROOT ENDPOINT - Welcome message
@@ -113,6 +107,7 @@ async def root():
         },
         "status": "running"
     }
+
 
 # ============================================================================
 # HEALTH ENDPOINT - Check if server is alive

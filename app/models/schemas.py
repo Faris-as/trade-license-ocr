@@ -3,7 +3,7 @@ Pydantic Models - API Request/Response Schemas
 Defines the structure of data going in and out of the API
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -19,13 +19,14 @@ class Owner(BaseModel):
     name: str = Field(..., description="Full name of the owner")
     share_percentage: str = Field(..., description="Ownership percentage (e.g., '50%')")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "NAJLA ANTAR ABDULLA ALJABERI",
                 "share_percentage": "100%"
             }
         }
+    )
 
 
 # ============================================================================
@@ -44,8 +45,8 @@ class TradeLicenseData(BaseModel):
     manager_name: Optional[str] = Field(None, description="Manager/Authorized signatory name")
     owners: List[Owner] = Field(default_factory=list, description="List of company owners with share percentages")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "license_number": "CN-2883802",
                 "company_name": "TIGER FIRE FOR SECURITY SYSTEM",
@@ -60,6 +61,7 @@ class TradeLicenseData(BaseModel):
                 ]
             }
         }
+    )
 
 
 # ============================================================================
@@ -74,14 +76,15 @@ class ValidationInfo(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Non-critical validation warnings")
     errors: List[str] = Field(default_factory=list, description="Critical validation errors")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "is_valid": True,
                 "warnings": ["License expired on 25-12-2024"],
                 "errors": []
             }
         }
+    )
 
 
 # ============================================================================
@@ -100,8 +103,8 @@ class OCRResponse(BaseModel):
     processing_time: Optional[float] = Field(None, description="Time taken to process (seconds)")
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat(), description="Response timestamp")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Trade license processed successfully",
@@ -127,6 +130,7 @@ class OCRResponse(BaseModel):
                 "timestamp": "2026-01-09T10:30:00.123456"
             }
         }
+    )
 
 
 # ============================================================================
@@ -143,8 +147,8 @@ class ErrorResponse(BaseModel):
     details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat(), description="Error timestamp")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": False,
                 "message": "Failed to process image",
@@ -155,3 +159,4 @@ class ErrorResponse(BaseModel):
                 "timestamp": "2026-01-09T10:30:00.123456"
             }
         }
+    )

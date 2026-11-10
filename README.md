@@ -205,9 +205,14 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # 3. Install dependencies (editable + dev extras for pytest)
 pip install -e ".[dev]"
+
+# 4. Download the model weights (~22MB) from the v1.0.0 release
+mkdir -p ml_models/roboflow_model
+curl -L -o ml_models/roboflow_model/model.pt \
+  https://github.com/Faris-as/trade-license-ocr/releases/download/v1.0.0/model.pt
 ```
 
-> **Note:** The YOLOv8 model weights (`ml_models/roboflow_model/model.pt`) are **not** in the repository (~22MB, they are gitignored). Export your model from Roboflow and place it at that path — see `ml_models/README.md`.
+> **Note:** The YOLOv8 model weights (`ml_models/roboflow_model/model.pt`) are **not** in the repository — they are shipped as a GitHub Release asset. Alternatively, export your own model from Roboflow — see `ml_models/README.md`.
 
 ### Run the Server
 

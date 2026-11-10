@@ -463,7 +463,8 @@ def validate_parsed_data(data: Dict[str, Any]) -> Dict[str, Any]:
                 validation['warnings'].append(
                     f"License expired on {data['expiry_date']}"
                 )
-        except:
+        except (ValueError, TypeError):
+            # unparseable expiry date, skip expiry check
             pass
     
     # Check owner shares (if numeric)
@@ -478,8 +479,8 @@ def validate_parsed_data(data: Dict[str, Any]) -> Dict[str, Any]:
                 validation['warnings'].append(
                     f"Owner shares total {total_shares}% (expected 100%)"
                 )
-        except:
-            # If we can't parse percentages, skip validation
+        except (ValueError, TypeError, KeyError):
+            # if we can't parse percentages, skip share-sum validation
             pass
     
     data['validation'] = validation
