@@ -1,271 +1,84 @@
-<p align="center">
-  <h1 align="center">📜 Trade License OCR</h1>
-  <p align="center">
-    <b>AI-Powered Structured Data Extraction from Abu Dhabi Trade Licenses</b>
-  </p>
-  <p align="center">
-    <a href="#-features"><img src="https://img.shields.io/badge/Detection-YOLOv8-FF6F00?style=for-the-badge&logo=yolo" alt="YOLOv8"></a>
-    <a href="#-features"><img src="https://img.shields.io/badge/OCR-EasyOCR-FFB300?style=for-the-badge" alt="EasyOCR"></a>
-    <a href="#-tech-stack"><img src="https://img.shields.io/badge/API-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"></a>
-    <a href="#-features"><img src="https://img.shields.io/badge/Model-Roboflow-6706CE?style=for-the-badge&logo=roboflow" alt="Roboflow"></a>
-  </p>
-  <p align="center">
-    <img src="https://img.shields.io/badge/python-3.10--3.11-3776AB?logo=python&logoColor=white" alt="Python 3.10–3.11">
-    <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
-    <img src="https://img.shields.io/badge/language-Python%20100%25-blue" alt="Python 100%">
-    <img src="https://img.shields.io/badge/framework-FastAPI-009688" alt="FastAPI">
-  </p>
-</p>
+# Trade License OCR
+
+Structured data extraction from **Abu Dhabi trade licenses**. Upload a license image or PDF, and the service returns validated JSON for license number, company name, dates, manager, and owners.
+
+**Pipeline:** YOLOv8 object detection (Roboflow-trained) locates the field regions → each region is cropped and preprocessed → **EasyOCR** (English + Arabic) reads the text → a parser cleans, normalizes, and validates the result. PDF input is rendered to an image via **PyMuPDF** before detection.
+
+| Platform | Component | Purpose |
+|----------|-----------|---------|
+| Detection | [YOLOv8](https://github.com/ultralytics/ultralytics) / [Roboflow](https://roboflow.com/) | Locate field regions on the document |
+| OCR | [EasyOCR](https://github.com/JaidedAI/EasyOCR) | Read text from detected regions |
+| API | [FastAPI](https://fastapi.tiangolo.com/) 0.104 + [Pydantic v2](https://docs.pydantic.dev/) | REST endpoint with typed response schemas |
+| Runtime | [PyTorch](https://pytorch.org/) 2.1 · Python 3.10–3.11 | Model inference |
 
 ---
 
-An intelligent document processing system that automatically extracts structured data from **Abu Dhabi Trade License** images and PDFs. Upload a trade license document, and the system uses a **YOLOv8 object detection** model (trained via Roboflow) to locate key fields, **OCR** to extract text from each detected region, and an **intelligent parser** to clean, validate, and structure the extracted data into a standardized JSON format.
+## Setup
 
-> **Use Cases:** Government document digitization · Trade license verification · Business registration automation · KYC compliance · Document archival systems
-
----
-
-## 📑 Table of Contents
-
-- [✨ Features](#-features)
-- [🏗️ Architecture](#️-architecture)
-- [📁 Project Structure](#-project-structure)
-- [🛠️ Tech Stack](#️-tech-stack)
-- [⚡ Quick Start](#-quick-start)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Run the Server](#run-the-server)
-- [🔌 API Reference](#-api-reference)
-  - [Process Trade License](#post-ocrtrade-license)
-  - [Sample Response](#sample-response)
-- [🧪 Testing](#-testing)
-- [📊 Pipeline Output](#-pipeline-output)
-- [🖥️ Frontend](#️-frontend)
-- [⚙️ Configuration](#️-configuration)
-- [🗺️ Roadmap](#️-roadmap)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
-
----
-
-## ✨ Features
-
-| Category | Feature | Details |
-|----------|---------|---------|
-| 🎯 **Detection** | YOLOv8 Object Detection | Custom-trained Roboflow model to locate license fields (license number, company name, dates, owners, etc.) |
-| 🔤 **OCR** | Text Extraction | Per-field OCR from cropped detection regions with confidence scoring |
-| 🧹 **Parsing** | Intelligent Post-Processing | Field mapping, text cleaning, date normalization, ownership structuring |
-| 📋 **Validation** | Data Quality Checks | Confidence thresholds, format validation, completeness scoring |
-| 🌐 **API** | FastAPI REST Endpoint | Single-endpoint file upload → structured JSON response |
-| 📄 **Formats** | Multi-Format Support | JPG, JPEG, PNG, and PDF input support |
-| 🏷️ **Schema** | Pydantic v2 Models | Strongly-typed request/response schemas with validation |
-| 🐞 **Debug** | Crop Saving | Save detected field crops for debugging and quality inspection |
-| 🔗 **CORS** | Cross-Origin Support | Frontend-ready with full CORS middleware |
-| 📊 **Metrics** | Processing Telemetry | Extraction time, confidence scores, field detection counts |
-
----
-
-## 🏗️ Architecture
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                     Client (Frontend / cURL)                      │
-│               Upload trade license image / PDF                    │
-└──────────────────────────┬───────────────────────────────────────┘
-                           │  POST /ocr/trade-license
-                           ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    FastAPI Backend (app/)                          │
-│                                                                   │
-│  ┌─────────────┐                                                  │
-│  │  routes.py  │  ← API endpoint, file validation, orchestration  │
-│  └──────┬──────┘                                                  │
-│         │                                                         │
-│         ▼                                                         │
-│  ┌──────────────────────────────────────────────────────────────┐ │
-│  │              Processing Pipeline (services/)                 │ │
-│  │                                                              │ │
-│  │  ┌────────────────┐   ┌────────────────┐   ┌──────────────┐ │ │
-│  │  │  ocr_service   │──▶│  ocr_pipeline  │──▶│   parser     │ │ │
-│  │  │                │   │                │   │   service     │ │ │
-│  │  │ • Load YOLO    │   │ • Crop fields  │   │ • Field map  │ │ │
-│  │  │ • Run detect   │   │ • Run OCR      │   │ • Clean text │ │ │
-│  │  │ • Get bboxes   │   │ • Get text     │   │ • Normalize  │ │ │
-│  │  │ • Confidence   │   │ • Confidence   │   │ • Structure  │ │ │
-│  │  └────────────────┘   └────────────────┘   └──────────────┘ │ │
-│  └──────────────────────────────────────────────────────────────┘ │
-│         │                                                         │
-│         ▼                                                         │
-│  ┌──────────────────┐  ┌──────────────────┐                       │
-│  │  schemas.py      │  │  file_handler.py │                       │
-│  │  Pydantic v2     │  │  Upload / Save   │                       │
-│  │  Response Models │  │  Cleanup / Size  │                       │
-│  └──────────────────┘  └──────────────────┘                       │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                   YOLOv8 Model (ml_models/)                       │
-│               Roboflow-trained · model.pt (~22MB)                 │
-│         Custom classes: license fields on Abu Dhabi docs          │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-**Pipeline Flow:**
-
-1. **Upload** → Client sends trade license image/PDF via `POST /ocr/trade-license`
-2. **Validate** → File type check (JPG/PNG/PDF), size check (≤10MB), save to `uploads/`
-3. **Prepare** → PDFs are rendered to a page-1 PNG via PyMuPDF (images are passed through)
-4. **Detect** → YOLOv8 model runs inference to detect field regions (bounding boxes)
-5. **Crop & OCR** → Each detected region is cropped, preprocessed, and fed through EasyOCR for text extraction
-6. **Parse** → Raw OCR text is cleaned, mapped to fields, dates normalized, owners structured
-7. **Respond** → Structured JSON with extracted fields, confidence scores, and validation info
-
----
-
-## 📁 Project Structure
-
-```
-trade-license-ocr/
-├── app/                              # Main application package
-│   ├── __init__.py
-│   ├── main.py                       # FastAPI app factory, CORS, router registration
-│   │
-│   ├── api/                          # API layer
-│   │   ├── __init__.py
-│   │   └── routes.py                 # POST /ocr/trade-license endpoint
-│   │
-│   ├── models/                       # Data models
-│   │   ├── __init__.py
-│   │   └── schemas.py                # Pydantic v2: Owner, TradeLicenseData, OCRResponse
-│   │
-│   ├── services/                     # Business logic
-│   │   ├── __init__.py
-│   │   ├── ocr_service.py            # YOLO model loading & inference
-│   │   ├── ocr_pipeline.py           # Detection → Crop → OCR text extraction
-│   │   └── parser_service.py         # Text cleaning, field mapping, structuring
-│   │
-│   └── utils/                        # Utilities
-│       ├── __init__.py
-│       └── file_handler.py           # File upload, save, size check, cleanup, PDF render
-│
-├── ml_models/                        # Machine learning models (weights NOT in the repo)
-│   ├── README.md                     # Where to put model.pt
-│   └── roboflow_model/
-│       └── model.pt                  # YOLOv8 weights — add your Roboflow export (~22MB)
-│
-├── tests/                            # pytest suite (parser logic; no model needed)
-│
-├── frontend/                         # Frontend application (planned)
-│
-├── run.py                            # Server entry point (dev launcher)
-├── test_model.py                     # Model loading & inference harness
-├── test_ocr_pipeline.py              # End-to-end OCR pipeline harness
-├── pyproject.toml                    # Package metadata, pinned deps, pytest config
-└── LICENSE                           # MIT license
-```
-
-> **Note:** `uploads/` is a gitignored runtime directory created on demand; keep real license scans out of the repo.
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Object Detection** | [YOLOv8](https://github.com/ultralytics/ultralytics) (Ultralytics) | Locate field regions on trade license documents |
-| **Model Training** | [Roboflow](https://roboflow.com/) | Annotate, train, and export custom YOLO model |
-| **OCR Engine** | [EasyOCR](https://github.com/JaidedAI/EasyOCR) (English + Arabic) | Read text from detected/cropped regions |
-| **Backend** | [FastAPI](https://fastapi.tiangolo.com/) 0.104 | Async REST API with auto-generated docs |
-| **Server** | [Uvicorn](https://www.uvicorn.org/) | High-performance ASGI server |
-| **Schemas** | [Pydantic v2](https://docs.pydantic.dev/) | Request/response validation and serialization |
-| **Deep Learning** | [PyTorch](https://pytorch.org/) 2.1 | Model inference runtime |
-| **Image Processing** | [Pillow](https://pillow.readthedocs.io/) + NumPy | Image manipulation and preprocessing |
-| **Language** | Python 3.10+ | 100% Python codebase |
-
----
-
-## ⚡ Quick Start
-
-### Prerequisites
-
-- **Python** 3.10 or 3.11 (pinned deps ship no wheels for newer versions)
-- **pip** for package management
-- **Git** for cloning
-
-### Installation
+Requires Python 3.10 or 3.11 with `pip`. With `make` (Linux/macOS/WSL):
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Faris-as/trade-license-ocr.git
 cd trade-license-ocr
 
-# 2. Create a virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+make setup        # venv + pip install -e ".[dev]"
+make model        # download model.pt (~22MB) from the v1.0.0 release
+make test         # run the parser test suite (no model needed)
+make serve        # start the dev server → http://localhost:8000/docs
+```
 
-# 3. Install dependencies (editable + dev extras for pytest)
+Without `make` (any OS):
+
+```bash
+python -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
-# 4. Download the model weights (~22MB) from the v1.0.0 release
 mkdir -p ml_models/roboflow_model
 curl -L -o ml_models/roboflow_model/model.pt \
   https://github.com/Faris-as/trade-license-ocr/releases/download/v1.0.0/model.pt
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-> **Note:** The YOLOv8 model weights (`ml_models/roboflow_model/model.pt`) are **not** in the repository — they are shipped as a GitHub Release asset. Alternatively, export your own model from Roboflow — see `ml_models/README.md`.
+> Model weights are not in the repository — they ship as a GitHub Release asset, or export your own from Roboflow (see `ml_models/README.md`).
 
-### Run the Server
+### All make targets
 
-```bash
-# Option 1: Using run.py (recommended)
-python run.py
-
-# Option 2: Using uvicorn directly
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Then open your browser:
-- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+| Command | Effect |
+|---------|--------|
+| `make setup` | Create `.venv`, install pinned dependencies (+ pytest) |
+| `make model` | Download the YOLOv8 weights to `ml_models/roboflow_model/` |
+| `make serve` | Dev server with autoreload |
+| `make serve-prod` | Production-style server (`uvicorn --workers 1`) |
+| `make test` | Parser unit tests |
+| `make test-model` | Manual detection harness (needs a sample image in `uploads/`) |
+| `make test-ocr` | Manual detection → crop → OCR harness |
+| `make clean` | Remove venv, caches, and `uploads/` runtime artifacts |
 
 ---
 
-## 🔌 API Reference
+## API
 
 ### `POST /ocr/trade-license`
 
-Upload a trade license image or PDF to extract structured data.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `file` | `UploadFile` | ✅ | Trade license image (JPG, JPEG, PNG) or PDF |
-
-**Constraints:**
-- Maximum file size: **10MB**
-- Supported formats: `JPG`, `JPEG`, `PNG`, `PDF`
-
-#### cURL Example
+Download one file: JPG / JPEG / PNG / PDF, up to 10MB.
 
 ```bash
 curl -X POST "http://localhost:8000/ocr/trade-license" \
-  -H "accept: application/json" \
-  -H "Content-Type: multipart/form-data" \
   -F "file=@/path/to/trade_license.jpg"
 ```
 
-#### Python Example
-
 ```python
 import requests
-
-url = "http://localhost:8000/ocr/trade-license"
-files = {"file": open("trade_license.jpg", "rb")}
-response = requests.post(url, files=files)
-print(response.json())
+resp = requests.post(
+    "http://localhost:8000/ocr/trade-license",
+    files={"file": open("trade_license.jpg", "rb")},
+)
+print(resp.json())
 ```
 
-### Sample Response
+**Response**
 
 ```json
 {
@@ -278,219 +91,90 @@ print(response.json())
     "expiry_date": "25-12-2024",
     "manager_name": "NAJLA ANTAR ABDULLA ALJABERI",
     "owners": [
-      {
-        "name": "NAJLA ANTAR ABDULLA ALJABERI",
-        "share_percentage": "100%"
-      }
+      { "name": "NAJLA ANTAR ABDULLA ALJABERI", "share_percentage": "100%" }
     ]
   },
-  "validation": {
-    "is_valid": true,
-    "warnings": ["License expired on 25-12-2024"],
-    "errors": []
-  },
+  "validation": { "is_valid": true, "warnings": [], "errors": [] },
   "processing_time": 2.34,
   "timestamp": "2026-01-09T10:30:00.123456"
 }
 ```
 
-### Response Schema
-
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | `bool` | Whether extraction was successful |
-| `message` | `string` | Human-readable status message |
-| `data.license_number` | `string \| null` | Trade license number (e.g., `CN-2883802`) |
+| `data.license_number` | `string \| null` | Trade license number (`CN-XXXXXXX`) |
 | `data.company_name` | `string \| null` | Registered company/trade name |
-| `data.establishment_date` | `string \| null` | Date of establishment (`DD-MM-YYYY`) |
-| `data.expiry_date` | `string \| null` | License expiry date (`DD-MM-YYYY`) |
-| `data.manager_name` | `string \| null` | Name of the manager |
-| `data.owners` | `Owner[]` | List of owners with name and share percentage |
-| `validation.is_valid` | `bool` | Whether the extracted data passed validation |
-| `validation.warnings` | `string[]` | Non-critical issues (e.g., expired license) |
-| `validation.errors` | `string[]` | Critical issues (e.g., license number missing) |
-| `processing_time` | `float` | Total processing time in seconds |
-| `timestamp` | `string` | ISO 8601 response timestamp |
+| `data.establishment_date` / `expiry_date` | `string \| null` | `DD-MM-YYYY` |
+| `data.manager_name` | `string \| null` | Authorized signatory name |
+| `data.owners` | `Owner[]` | Name + share percentage per owner |
+| `validation` | `{is_valid, warnings, errors}` | Data-quality checks (expired license, missing number, share sums) |
+| `processing_time` | `float` | Seconds spent end-to-end |
 
-### Error Responses
+**Detected field classes** (what the model locates): `LICENSE_NUMBER`, `COMPANY_NAME`, `ESTABLISHMENT_DATE`, `EXPIRY_DATE`, `MANAGER_NAME`, `OWNER_NAME`, `SHARE_PERCENTAGE`.
 
-| Status | When |
-|--------|------|
-| `400` | Unsupported file type, file too large, unreadable/corrupt file, or no fields detected in the document |
-| `500` | Detection, OCR, or parsing failure on the server side (details are logged server-side, never returned to the client) |
+**Errors:** `400` for unsupported/oversized/unreadable files or no fields detected; `500` for server-side failures — internals are logged server-side and never returned to clients. Interactive docs at `/docs` (Swagger) and `/redoc`; health checks at `/health` and `/ocr/health`.
 
 ---
 
-## 📊 Pipeline Output
-
-### Raw OCR Results (per-field)
-
-Each detected field produces a result with detection and OCR confidence:
-
-```json
-{
-  "EXPIRY_DATE": {
-    "text": "13/01/2024",
-    "detection_confidence": 0.708,
-    "ocr_confidence": 0.999,
-    "bbox": { "x1": 585, "y1": 616, "x2": 747, "y2": 655 }
-  },
-  "COMPANY_NAME": {
-    "text": "AL RAKHA CONTRACTING & GENERAL TRANSPORT LLC",
-    "detection_confidence": 0.623,
-    "ocr_confidence": 0.95,
-    "bbox": { "x1": 120, "y1": 280, "x2": 890, "y2": 330 }
-  }
-}
-```
-
-### Detected Field Classes
-
-The YOLOv8 model is trained to detect the following field regions on Abu Dhabi trade licenses:
-
-| Class | Description | Example Value |
-|-------|-------------|---------------|
-| `LICENSE_NUMBER` | Trade license number | `CN-2883802` |
-| `COMPANY_NAME` | Registered company name | `TIGER FIRE FOR SECURITY SYSTEM` |
-| `ESTABLISHMENT_DATE` | Date of establishment | `14-10-2019` |
-| `EXPIRY_DATE` | License expiry date | `25-12-2024` |
-| `MANAGER_NAME` | Manager's full name | `NAJLA ANTAR ABDULLA ALJABERI` |
-| `OWNER_NAME` | Owner name(s) | `NAJLA ANTAR ABDULLA ALJABERI` |
-| `SHARE_PERCENTAGE` | Ownership share | `100%` |
-
----
-
-## 🧪 Testing
-
-### Automated (no model weights needed)
+## Testing
 
 ```bash
-pytest tests/          # parser logic: cleaning, dates, owners, validation
+pytest tests/        # parser logic — pure stdlib, runs without the model
 ```
 
-### Manual harnesses (need `model.pt` + a sample license image)
+`test_model.py` and `test_ocr_pipeline.py` are manual harnesses for detection and the OCR pipeline; they need `model.pt` and a sample license image in `uploads/`.
 
-```bash
-# Detection only
-python test_model.py
+---
 
-# YOLO → Crop → OCR
-python test_ocr_pipeline.py
+## Configuration
+
+| Setting | Where | Default |
+|---------|-------|---------|
+| `OCR_GPU` env var | EasyOCR device | `true` (set `false` for CPU-only servers) |
+| CORS | `app/main.py` | `allow_origins=["*"]`, no credentials — LAN/dev; tighten before exposing publicly |
+| Confidence threshold | `app/api/routes.py` | `0.25` |
+| Max upload size | `app/utils/file_handler.py` | `10MB` |
+| File upload limit and PDF render | `app/utils/file_handler.py` | page 1 @ ~200 DPI (licenses are single-page) |
+| Serving | `run.py` is dev-only (reload) | prod: `uvicorn app.main:app --workers N` |
+
+There is **no authentication** — treat this as an internal/LAN service; add auth + rate limiting before any public deployment.
+
+---
+
+## Project Structure
+
+```
+trade-license-ocr/
+├── app/                      # FastAPI application
+│   ├── main.py               # App factory, CORS, lifespan (model pre-load)
+│   ├── api/routes.py         # POST /ocr/trade-license endpoint
+│   ├── models/schemas.py     # Pydantic response models
+│   ├── services/             # ocr_service (YOLO), ocr_pipeline (crop+OCR), parser_service
+│   └── utils/file_handler.py # Upload validation, PDF render, cleanup
+├── ml_models/                # YOLOv8 weights (not in repo — release asset)
+├── tests/                    # pytest suite (parser, no model needed)
+├── frontend/                 # planned
+├── Makefile                  # one-command dev workflows
+└── pyproject.toml            # deps, Python gate, pytest config
 ```
 
-| Script | What it Tests | Pipeline Stage |
-|-------------|----------------|----------------|
-| `tests/test_parser.py` | Cleaning, date parsing, owner structuring, validation — asserted | Parse (pure logic) |
-| `test_model.py` | Model loading, sample image inference | Detection |
-| `test_ocr_pipeline.py` | YOLO detection → field cropping → OCR extraction | Detection + OCR |
+## Roadmap
 
-> **Tip:** Sample license scans are gitignored — bring your own image and drop it in `uploads/` for harness runs.
-
----
-
-## 🖥️ Frontend
-
-A frontend application is planned (not included yet) for:
-
-- 📤 Uploading trade license images via drag-and-drop
-- 📊 Viewing extracted structured data in a clean format
-- 🔍 Inspecting detection bounding boxes and confidence scores
-- 📋 Copying/exporting results as JSON
-
-> The frontend connects to the FastAPI backend via the CORS-enabled REST API.
-
----
-
-## ⚙️ Configuration
-
-### API Configuration (`app/main.py`)
-
-| Setting | Value | Description |
-|---------|-------|-------------|
-| `title` | `Trade License OCR API` | API title in Swagger docs |
-| `version` | `1.0.0` | API version |
-| `docs_url` | `/docs` | Swagger UI path |
-| `redoc_url` | `/redoc` | ReDoc documentation path |
-| CORS | `allow_origins=["*"]`, no credentials | Wildcard origins for LAN/dev use; tighten when an auth story lands |
-| lifespan | loads the YOLO model at startup | Model pre-loads once (server-wide) instead of per request |
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OCR_GPU` | `true` | Set to `false` to force EasyOCR onto CPU (servers without CUDA) |
-
-### Server Configuration (`run.py` — dev only)
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `host` | `0.0.0.0` | Listen on all interfaces |
-| `port` | `8000` | Server port |
-| `reload` | `True` | Auto-reload on code changes (development only) |
-
-For production-style serving use `uvicorn app.main:app --workers N` instead of `run.py`.
-
-### Model Configuration
-
-| Setting | Value | Description |
-|---------|-------|-------------|
-| Model path | `ml_models/roboflow_model/model.pt` | YOLOv8 weights location (not in repo — [release asset](https://github.com/Faris-as/trade-license-ocr/releases/download/v1.0.0/model.pt)) |
-| Model size | ~22MB | Pre-trained PyTorch weights |
-| Confidence threshold | `0.25` | Default detection confidence |
-| Max file size | `10MB` | Upload size limit |
-| PDF rendering | page 1 @ ~200 DPI | PyMuPDF render before detection (licenses are single-page) |
-
----
-
-## 🗺️ Roadmap
-
-- [x] YOLOv8 field detection with Roboflow model
-- [x] OCR pipeline with cropping and text extraction
-- [x] Intelligent text parsing and field structuring
-- [x] FastAPI REST endpoint with Pydantic schemas
-- [x] File upload handling with validation
-- [x] Debug crop saving for inspection
-- [x] Automated parser test suite (`pytest tests/`) + manual harness scripts
-- [x] PDF upload support (single-page render via PyMuPDF)
-- [x] Packaged with `pyproject.toml` (Python 3.10–3.11, pinned deps)
-- [ ] Arabic text extraction quality verification (EasyOCR already loads `en` + `ar`)
-- [ ] Batch processing endpoint for multiple documents
+- [x] YOLOv8 detection, OCR pipeline, parsing, validation
+- [x] PDF input (single-page render via PyMuPDF)
+- [x] Automated parser test suite + manual harnesses
+- [x] Packaging (`pyproject.toml`) and `Makefile` workflows
+- [ ] Arabic extraction quality verification (EasyOCR already loads `en` + `ar`)
+- [ ] Batch processing endpoint
 - [ ] Database integration for processed records
-- [ ] Confidence-based manual review flagging
 - [ ] Docker containerization
-- [ ] Frontend dashboard with result visualization
+- [ ] Auth + rate limiting for public deployment
+- [ ] Frontend dashboard
 
----
+## Contributing
 
-## 🤝 Contributing
+Fork → feature branch → PR. Please extend `tests/` for parser changes, use typed Pydantic schemas (`model_config`, not legacy `class Config`), mark deliberate simplifications with a `# shortcut:` comment naming their ceiling, and don't commit model weights or license scans.
 
-Contributions are welcome! Please follow these steps:
+## License
 
-1. **Fork** the repository
-2. **Create** your feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development Guidelines
-
-- Follow PEP 8 for Python code style
-- Add/extend tests under `tests/` (pure-logic parser tests run without the model)
-- Use Pydantic models for all API schemas (`model_config`, not legacy `class Config`)
-- Use type hints throughout the codebase
-- Mark any deliberate simplification with a `# shortcut:` comment naming its ceiling
-- Don't commit model weights or license scans — the model ships as a GitHub Release asset
-
----
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
----
-
-<p align="center">
-  <b>Built with ❤️ by <a href="https://github.com/Faris-as">Faris-as</a></b>
-  <br>
-  <sub>If you found this project useful, please consider giving it a ⭐</sub>
-</p>
+[MIT](LICENSE)
