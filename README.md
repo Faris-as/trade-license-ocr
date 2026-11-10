@@ -164,12 +164,10 @@ trade-license-ocr/
 - [x] PDF input (single-page render via PyMuPDF)
 - [x] Automated parser test suite + manual harnesses
 - [x] Packaging (`pyproject.toml`) and `Makefile` workflows
-- [ ] Arabic extraction quality verification (EasyOCR already loads `en` + `ar`)
-- [ ] Batch processing endpoint
-- [ ] Database integration for processed records
-- [ ] Docker containerization
-- [ ] Auth + rate limiting for public deployment
-- [ ] Frontend dashboard
+- [ ] Arabic extraction quality verification + `_ar` mirror fields — [#1](https://github.com/Faris-as/trade-license-ocr/issues/1)
+- [ ] Batch endpoint (inline, cap 10) — [#2](https://github.com/Faris-as/trade-license-ocr/issues/2)
+- [ ] Frontend dashboard — [#3](https://github.com/Faris-as/trade-license-ocr/issues/3)
+- [ ] Docker + auth/rate limiting for public deployment — [#4](https://github.com/Faris-as/trade-license-ocr/issues/4)
 
 ## Contributing
 
