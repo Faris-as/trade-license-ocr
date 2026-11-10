@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageEnhance
 from typing import Dict, List, Any, Tuple
+import os as _os
 import easyocr
 
 # ============================================================================
@@ -35,10 +36,11 @@ def get_ocr_reader() -> easyocr.Reader:
         print("   ⏳ This takes 10-20 seconds on first run...")
         
         # Initialize with English and Arabic
-        # gpu=True uses M1 GPU for faster processing
+        # shortcut: OCR_GPU env flag instead of auto-detect; fine for this
+        # single-purpose deploys. Upgrade path: torch.cuda.is_available()
         _reader = easyocr.Reader(
             ['en', 'ar'],  # Languages
-            gpu=True,      # Use GPU if available (M1 Neural Engine)
+            gpu=_os.getenv("OCR_GPU", "true").lower() != "false",
             verbose=False  # Don't print detailed logs
         )
         
@@ -303,13 +305,36 @@ def process_detections(
         else:
             print(f"      ⚠️  No text detected")
         
-        # STEP 2d: Store result
-        results[class_name] = {
-            'text': text,
-            'detection_confidence': round(det_confidence, 3),
-            'ocr_confidence': round(ocr_confidence, 3),
-            'bbox': bbox
-        }
+        # STEP 2d: Store result.
+        # shortcut: same class detected twice is merged with a suffix key
+        # (owner -> owner_1) which the parser already handles for owner/partner;
+        # other classes keep first + append text. Ceiling: field-split boxes
+        # mid-date may parse oddly. Upgrade path: list-per-class in the schema
+        # and parser revisited.
+        if class_name in results:
+            if class_name.startswith(("owner", "partner")):
+                dup_idx = 1
+                while f"{class_name}_{dup_idx}" in results:
+                    dup_idx += 1
+                results[f"{class_name}_{dup_idx}"] = {
+                    'text': text,
+                    'detection_confidence': round(det_confidence, 3),
+                    'ocr_confidence': round(ocr_confidence, 3),
+                    'bbox': bbox
+                }
+                print(f"      ⚠️  Duplicate detection stored as {class_name}_{dup_idx}")
+            else:
+                merged = results[class_name]
+                merged['text'] = (merged['text'] + " " + text).strip()
+                merged['ocr_confidence'] = max(merged['ocr_confidence'], round(ocr_confidence, 3))
+                print(f"      ⚠️  Duplicate {class_name} merged into existing text")
+        else:
+            results[class_name] = {
+                'text': text,
+                'detection_confidence': round(det_confidence, 3),
+                'ocr_confidence': round(ocr_confidence, 3),
+                'bbox': bbox
+            }
     
     print("\n" + "=" * 60)
     print(f"✅ PIPELINE COMPLETE: Extracted {len(results)} fields")

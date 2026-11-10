@@ -23,7 +23,7 @@ ultralytics==8.0.196
 # ============================================================================
 
 # Pillow - Image loading and manipulation
-Pillow==10.1.0
+Pillow==10.2.0
 
 # OpenCV - Advanced image processing
 opencv-python==4.8.1.78
@@ -36,7 +36,7 @@ numpy==1.24.3
 # ============================================================================
 
 # Python-multipart - Handle file uploads
-python-multipart==0.0.6
+python-multipart==0.0.7
 
 # Python-dotenv - Environment variables
 python-dotenv==1.0.0
@@ -47,5 +47,5 @@ python-dotenv==1.0.0
 # EasyOCR - Supports Arabic + English
 easyocr==1.7.0
 
-# OpenCV - Already added, but ensure it's there
-opencv-python==4.8.1.78
+# PyMuPDF - Render PDF page to image for the OCR pipeline
+PyMuPDF==1.24.1

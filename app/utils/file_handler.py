@@ -136,6 +136,48 @@ def cleanup_file(file_path: str) -> None:
 
 
 # ============================================================================
+# PDF HANDLING
+# ============================================================================
+
+def prepare_input(file_path: str) -> Tuple[str, bool]:
+    """
+    Prepare an uploaded file for the OCR pipeline.
+
+    .pdf files are unsupported by cv2/PIL, so page 1 is rendered to a
+    temporary PNG that is passed downstream instead.
+
+    Args:
+        file_path: Path to the uploaded file (.jpg/.jpeg/.png/.pdf)
+
+    Returns:
+        Tuple of (path to feed the pipeline, whether it is a temp render)
+
+    Example:
+        source, is_temp = prepare_input("uploads/abc.pdf")
+        # (Path to "uploads/abc_render.png", True)
+    """
+    if not file_path.lower().endswith(".pdf"):
+        return file_path, False
+
+    import fitz  # PyMuPDF
+
+    pdf = fitz.open(file_path)
+    try:
+        if pdf.page_count < 1:
+            raise ValueError("PDF has no pages")
+
+        # Render page 1 (trade licenses are single-page) at ~200 DPI
+        zoom = 200 / 72
+        pixmap = pdf[0].get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+        render_path = str(Path(file_path).with_suffix("_render.png"))
+        pixmap.save(render_path)
+    finally:
+        pdf.close()
+
+    return render_path, True
+
+
+# ============================================================================
 # FILE SIZE CHECK
 # ============================================================================
 

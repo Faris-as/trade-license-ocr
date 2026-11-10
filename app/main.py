@@ -29,8 +29,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
+    # shortcut: wildcard origins with no deploy target yet; credentials are
+    # off (no cookies/schema auth), which drops the invalid insecure combo.
+    # Ceiling: fine for LAN/open API. Upgrade path: set CORS_ORIGINS to the
+    # real frontend domain with regex when auth lands.
     allow_origins=["*"],  # In production, specify exact domains
-    allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allow all headers
 )

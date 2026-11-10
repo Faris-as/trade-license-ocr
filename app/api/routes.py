@@ -11,7 +11,7 @@ from app.models.schemas import OCRResponse, ErrorResponse, TradeLicenseData, Val
 from app.services.ocr_service import run_inference
 from app.services.ocr_pipeline import process_detections
 from app.services.parser_service import process_and_structure
-from app.utils.file_handler import save_upload_file, cleanup_file, check_file_size
+from app.utils.file_handler import save_upload_file, cleanup_file, check_file_size, prepare_input
 
 
 # ============================================================================
@@ -67,7 +67,7 @@ router = APIRouter(
         }
     }
 )
-async def process_trade_license(
+def process_trade_license(
     file: UploadFile = File(
         ...,
         description="Trade license image or PDF file",
@@ -95,6 +95,7 @@ async def process_trade_license(
         HTTPException: If processing fails at any step
     """
     file_path = None
+    source_path = None
     start_time = time.time()
     
     try:
@@ -145,12 +146,37 @@ async def process_trade_license(
                 }
             )
         
+        # Render PDF page 1 to PNG (cv2/PIL cannot read PDFs directly)
+        try:
+            source_path, is_temp_render = prepare_input(file_path)
+            if is_temp_render:
+                print(f"   ✅ PDF rendered to: {source_path}")
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "message": str(e),
+                    "error_type": "FileValidationError"
+                }
+            )
+        except Exception as e:
+            print(f"❌ PDF preparation failed: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "success": False,
+                    "message": "Failed to read the uploaded document",
+                    "error_type": "FileReadError"
+                }
+            )
+        
         # ================================================================
         # STEP 3: RUN YOLO DETECTION
         # ================================================================
         print("\n🎯 Running YOLO detection...")
         try:
-            detections = run_inference(file_path, confidence_threshold=0.25)
+            detections = run_inference(source_path, confidence_threshold=0.25)
             print(f"   ✅ Found {len(detections)} detections")
             
             if len(detections) == 0:
@@ -167,12 +193,24 @@ async def process_trade_license(
                 )
         except HTTPException:
             raise  # Re-raise HTTP exceptions
+        except ValueError as e:
+            # Unreadable image (fake extension, corrupt data) → client error
+            print(f"❌ Unreadable input: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "message": "Uploaded file could not be read as an image. Please upload a valid JPG, PNG, or PDF.",
+                    "error_type": "FileValidationError"
+                }
+            )
         except Exception as e:
+            print(f"❌ YOLO detection failed: {e}")
             raise HTTPException(
                 status_code=500,
                 detail={
                     "success": False,
-                    "message": f"YOLO detection failed: {str(e)}",
+                    "message": "Field detection failed during processing",
                     "error_type": "DetectionError"
                 }
             )
@@ -182,17 +220,15 @@ async def process_trade_license(
         # ================================================================
         print("\n🔤 Running OCR pipeline...")
         try:
-            ocr_results = process_detections(file_path, detections)
-            print("\n🧪 DEBUG ocr_results (AFTER OCR PIPELINE):")
-            print(ocr_results)
-            print(type(ocr_results))
+            ocr_results = process_detections(source_path, detections)
             print(f"   ✅ Extracted text from {len(ocr_results)} fields")
         except Exception as e:
+            print(f"❌ OCR processing failed: {e}")
             raise HTTPException(
                 status_code=500,
                 detail={
                     "success": False,
-                    "message": f"OCR processing failed: {str(e)}",
+                    "message": "Text extraction failed during processing",
                     "error_type": "OCRError"
                 }
             )
@@ -205,19 +241,16 @@ async def process_trade_license(
             structured_data = process_and_structure(ocr_results)
             print("   ✅ Data structured successfully")
         except Exception as e:
+            print(f"❌ Data parsing failed: {e}")
             raise HTTPException(
                 status_code=500,
                 detail={
                     "success": False,
-                    "message": f"Data parsing failed: {str(e)}",
+                    "message": "Data parsing failed during processing",
                     "error_type": "ParsingError"
                 }
             )
         
-        print("\n🧪 DEBUG structured_data:")
-        print(structured_data)
-        print(type(structured_data))
-
         # ================================================================
         # STEP 6: BUILD RESPONSE
         # ================================================================
@@ -227,10 +260,14 @@ async def process_trade_license(
         validation_data = structured_data.pop('validation', {})
         
         # Build response
+        # shortcut: filter to schema fields so unexpected parser keys 500-proof.
+        # Ceiling: a renamed field silently vanishes. Upgrade path: parser
+        # returns a typed object.
+        known_fields = set(TradeLicenseData.model_fields)
         response = OCRResponse(
             success=True,
             message="Trade license processed successfully",
-            data=TradeLicenseData(**structured_data),
+            data=TradeLicenseData(**{k: v for k, v in structured_data.items() if k in known_fields}),
             validation=ValidationInfo(**validation_data) if validation_data else None,
             processing_time=round(processing_time, 2)
         )
@@ -256,10 +293,7 @@ async def process_trade_license(
             detail={
                 "success": False,
                 "message": "An unexpected error occurred during processing",
-                "error_type": "UnexpectedError",
-                "details": {
-                    "error": str(e)
-                }
+                "error_type": "UnexpectedError"
             }
         )
     
@@ -267,7 +301,9 @@ async def process_trade_license(
         # ================================================================
         # STEP 7: CLEANUP
         # ================================================================
-        # Always clean up uploaded file, even if processing failed
+        # Always clean up uploaded file and any PDF render, even on failure
+        if source_path and source_path != file_path:
+            cleanup_file(source_path)
         if file_path:
             cleanup_file(file_path)
 
