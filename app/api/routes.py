@@ -152,22 +152,13 @@ def process_trade_license(
             if is_temp_render:
                 print(f"   ✅ PDF rendered to: {source_path}")
         except ValueError as e:
+            print(f"❌ Unreadable document: {e}")
             raise HTTPException(
                 status_code=400,
                 detail={
                     "success": False,
-                    "message": str(e),
+                    "message": "The uploaded document could not be read. Please upload a valid JPG, PNG, or PDF.",
                     "error_type": "FileValidationError"
-                }
-            )
-        except Exception as e:
-            print(f"❌ PDF preparation failed: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "success": False,
-                    "message": "Failed to read the uploaded document",
-                    "error_type": "FileReadError"
                 }
             )
         

@@ -161,16 +161,33 @@ def prepare_input(file_path: str) -> Tuple[str, bool]:
 
     import fitz  # PyMuPDF
 
-    pdf = fitz.open(file_path)
+    # shortcut: render naming via suffix-strip so "uploads/abc.pdf" becomes
+    # "uploads/abc_render.png" (with_suffix() would fail on multi-char suffix
+    # and support only ".png" replacements)
+    render_path = str(Path(file_path).with_suffix("")) + "_render.png"
+
+    try:
+        pdf = fitz.open(file_path)
+    except Exception as e:
+        # Corrupt/unreadable PDF → client error, same class as a fake .jpg
+        raise ValueError("The PDF could not be read. Please upload a valid JPG, PNG, or PDF.") from e
+
     try:
         if pdf.page_count < 1:
-            raise ValueError("PDF has no pages")
+            raise ValueError("PDF has no pages to process")
 
         # Render page 1 (trade licenses are single-page) at ~200 DPI
         zoom = 200 / 72
         pixmap = pdf[0].get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-        render_path = str(Path(file_path).with_suffix("_render.png"))
-        pixmap.save(render_path)
+        try:
+            pixmap.save(render_path)
+        except Exception:
+            cleanup_file(render_path)  # remove partial render before re-raise
+            raise
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError("The PDF could not be read. Please upload a valid JPG, PNG, or PDF.") from e
     finally:
         pdf.close()
 

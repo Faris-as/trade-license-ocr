@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageEnhance
 from typing import Dict, List, Any, Tuple
-import os as _os
+import os
 import easyocr
 
 # ============================================================================
@@ -40,7 +40,7 @@ def get_ocr_reader() -> easyocr.Reader:
         # single-purpose deploys. Upgrade path: torch.cuda.is_available()
         _reader = easyocr.Reader(
             ['en', 'ar'],  # Languages
-            gpu=_os.getenv("OCR_GPU", "true").lower() != "false",
+            gpu=os.getenv("OCR_GPU", "true").lower() != "false",
             verbose=False  # Don't print detailed logs
         )
         
@@ -306,35 +306,32 @@ def process_detections(
             print(f"      ⚠️  No text detected")
         
         # STEP 2d: Store result.
-        # shortcut: same class detected twice is merged with a suffix key
-        # (owner -> owner_1) which the parser already handles for owner/partner;
-        # other classes keep first + append text. Ceiling: field-split boxes
-        # mid-date may parse oddly. Upgrade path: list-per-class in the schema
-        # and parser revisited.
+        # shortcut: duplicates get a merged/suffixed key instead of overwriting.
+        # Ceiling: duplicate owner/partner keys use owner_N names, but the
+        # parser whitelist ends at owner_4/partner_3 — a 5th duplicate overwrites
+        # owner_4's slot. Upgrade path: list-per-class in schema + parser.
+        record = {
+            'text': text,
+            'detection_confidence': round(det_confidence, 3),
+            'ocr_confidence': round(ocr_confidence, 3),
+            'bbox': bbox
+        }
+
         if class_name in results:
             if class_name.startswith(("owner", "partner")):
                 dup_idx = 1
                 while f"{class_name}_{dup_idx}" in results:
                     dup_idx += 1
-                results[f"{class_name}_{dup_idx}"] = {
-                    'text': text,
-                    'detection_confidence': round(det_confidence, 3),
-                    'ocr_confidence': round(ocr_confidence, 3),
-                    'bbox': bbox
-                }
+                results[f"{class_name}_{dup_idx}"] = record
                 print(f"      ⚠️  Duplicate detection stored as {class_name}_{dup_idx}")
             else:
                 merged = results[class_name]
                 merged['text'] = (merged['text'] + " " + text).strip()
-                merged['ocr_confidence'] = max(merged['ocr_confidence'], round(ocr_confidence, 3))
+                # max() keeps the better read of the two partial detections
+                merged['ocr_confidence'] = max(merged['ocr_confidence'], record['ocr_confidence'])
                 print(f"      ⚠️  Duplicate {class_name} merged into existing text")
         else:
-            results[class_name] = {
-                'text': text,
-                'detection_confidence': round(det_confidence, 3),
-                'ocr_confidence': round(ocr_confidence, 3),
-                'bbox': bbox
-            }
+            results[class_name] = record
     
     print("\n" + "=" * 60)
     print(f"✅ PIPELINE COMPLETE: Extracted {len(results)} fields")
