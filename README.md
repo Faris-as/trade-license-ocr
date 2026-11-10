@@ -5,7 +5,7 @@
   </p>
   <p align="center">
     <a href="#-features"><img src="https://img.shields.io/badge/Detection-YOLOv8-FF6F00?style=for-the-badge&logo=yolo" alt="YOLOv8"></a>
-    <a href="#-features"><img src="https://img.shields.io/badge/OCR-Tesseract-4285F4?style=for-the-badge" alt="OCR"></a>
+    <a href="#-features"><img src="https://img.shields.io/badge/OCR-EasyOCR-FFB300?style=for-the-badge" alt="EasyOCR"></a>
     <a href="#-tech-stack"><img src="https://img.shields.io/badge/API-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"></a>
     <a href="#-features"><img src="https://img.shields.io/badge/Model-Roboflow-6706CE?style=for-the-badge&logo=roboflow" alt="Roboflow"></a>
   </p>
@@ -115,10 +115,11 @@ An intelligent document processing system that automatically extracts structured
 
 1. **Upload** → Client sends trade license image/PDF via `POST /ocr/trade-license`
 2. **Validate** → File type check (JPG/PNG/PDF), size check (≤10MB), save to `uploads/`
-3. **Detect** → YOLOv8 model runs inference to detect field regions (bounding boxes)
-4. **Crop & OCR** → Each detected region is cropped and fed through OCR for text extraction
-5. **Parse** → Raw OCR text is cleaned, mapped to fields, dates normalized, owners structured
-6. **Respond** → Structured JSON with extracted fields, confidence scores, and validation info
+3. **Prepare** → PDFs are rendered to a page-1 PNG via PyMuPDF (images are passed through)
+4. **Detect** → YOLOv8 model runs inference to detect field regions (bounding boxes)
+5. **Crop & OCR** → Each detected region is cropped, preprocessed, and fed through EasyOCR for text extraction
+6. **Parse** → Raw OCR text is cleaned, mapped to fields, dates normalized, owners structured
+7. **Respond** → Structured JSON with extracted fields, confidence scores, and validation info
 
 ---
 
@@ -174,7 +175,7 @@ trade-license-ocr/
 |-------|-----------|---------|
 | **Object Detection** | [YOLOv8](https://github.com/ultralytics/ultralytics) (Ultralytics) | Locate field regions on trade license documents |
 | **Model Training** | [Roboflow](https://roboflow.com/) | Annotate, train, and export custom YOLO model |
-| **OCR Engine** | Text Extraction | Read text from detected/cropped regions |
+| **OCR Engine** | [EasyOCR](https://github.com/JaidedAI/EasyOCR) (English + Arabic) | Read text from detected/cropped regions |
 | **Backend** | [FastAPI](https://fastapi.tiangolo.com/) 0.104 | Async REST API with auto-generated docs |
 | **Server** | [Uvicorn](https://www.uvicorn.org/) | High-performance ASGI server |
 | **Schemas** | [Pydantic v2](https://docs.pydantic.dev/) | Request/response validation and serialization |
@@ -269,6 +270,7 @@ print(response.json())
 ```json
 {
   "success": true,
+  "message": "Trade license processed successfully",
   "data": {
     "license_number": "CN-2883802",
     "company_name": "TIGER FIRE FOR SECURITY SYSTEM",
@@ -283,10 +285,12 @@ print(response.json())
     ]
   },
   "validation": {
-    "fields_extracted": 5,
-    "confidence_avg": 0.85,
-    "processing_time_ms": 1230
-  }
+    "is_valid": true,
+    "warnings": ["License expired on 25-12-2024"],
+    "errors": []
+  },
+  "processing_time": 2.34,
+  "timestamp": "2026-01-09T10:30:00.123456"
 }
 ```
 
@@ -295,15 +299,25 @@ print(response.json())
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | `bool` | Whether extraction was successful |
+| `message` | `string` | Human-readable status message |
 | `data.license_number` | `string \| null` | Trade license number (e.g., `CN-2883802`) |
 | `data.company_name` | `string \| null` | Registered company/trade name |
-| `data.establishment_date` | `string \| null` | Date of establishment |
-| `data.expiry_date` | `string \| null` | License expiry date |
+| `data.establishment_date` | `string \| null` | Date of establishment (`DD-MM-YYYY`) |
+| `data.expiry_date` | `string \| null` | License expiry date (`DD-MM-YYYY`) |
 | `data.manager_name` | `string \| null` | Name of the manager |
 | `data.owners` | `Owner[]` | List of owners with name and share percentage |
-| `validation.fields_extracted` | `int` | Number of fields successfully extracted |
-| `validation.confidence_avg` | `float` | Average detection confidence score |
-| `validation.processing_time_ms` | `int` | Total processing time in milliseconds |
+| `validation.is_valid` | `bool` | Whether the extracted data passed validation |
+| `validation.warnings` | `string[]` | Non-critical issues (e.g., expired license) |
+| `validation.errors` | `string[]` | Critical issues (e.g., license number missing) |
+| `processing_time` | `float` | Total processing time in seconds |
+| `timestamp` | `string` | ISO 8601 response timestamp |
+
+### Error Responses
+
+| Status | When |
+|--------|------|
+| `400` | Unsupported file type, file too large, unreadable/corrupt file, or no fields detected in the document |
+| `500` | Detection, OCR, or parsing failure on the server side (details are logged server-side, never returned to the client) |
 
 ---
 
@@ -397,24 +411,34 @@ A frontend application is planned (not included yet) for:
 | `version` | `1.0.0` | API version |
 | `docs_url` | `/docs` | Swagger UI path |
 | `redoc_url` | `/redoc` | ReDoc documentation path |
-| CORS | `allow_origins=["*"]` | Allow all origins (restrict in production) |
+| CORS | `allow_origins=["*"]`, no credentials | Wildcard origins for LAN/dev use; tighten when an auth story lands |
+| lifespan | loads the YOLO model at startup | Model pre-loads once (server-wide) instead of per request |
 
-### Server Configuration (`run.py`)
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OCR_GPU` | `true` | Set to `false` to force EasyOCR onto CPU (servers without CUDA) |
+
+### Server Configuration (`run.py` — dev only)
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `host` | `0.0.0.0` | Listen on all interfaces |
 | `port` | `8000` | Server port |
-| `reload` | `True` | Auto-reload on code changes (dev mode) |
+| `reload` | `True` | Auto-reload on code changes (development only) |
+
+For production-style serving use `uvicorn app.main:app --workers N` instead of `run.py`.
 
 ### Model Configuration
 
 | Setting | Value | Description |
 |---------|-------|-------------|
-| Model path | `ml_models/roboflow_model/model.pt` | YOLOv8 weights location |
+| Model path | `ml_models/roboflow_model/model.pt` | YOLOv8 weights location (not in repo — [release asset](https://github.com/Faris-as/trade-license-ocr/releases/download/v1.0.0/model.pt)) |
 | Model size | ~22MB | Pre-trained PyTorch weights |
 | Confidence threshold | `0.25` | Default detection confidence |
 | Max file size | `10MB` | Upload size limit |
+| PDF rendering | page 1 @ ~200 DPI | PyMuPDF render before detection (licenses are single-page) |
 
 ---
 
@@ -426,9 +450,10 @@ A frontend application is planned (not included yet) for:
 - [x] FastAPI REST endpoint with Pydantic schemas
 - [x] File upload handling with validation
 - [x] Debug crop saving for inspection
-- [x] Test scripts for each pipeline stage
-- [ ] PDF multi-page support
-- [ ] Arabic text extraction (bilingual license support)
+- [x] Automated parser test suite (`pytest tests/`) + manual harness scripts
+- [x] PDF upload support (single-page render via PyMuPDF)
+- [x] Packaged with `pyproject.toml` (Python 3.10–3.11, pinned deps)
+- [ ] Arabic text extraction quality verification (EasyOCR already loads `en` + `ar`)
 - [ ] Batch processing endpoint for multiple documents
 - [ ] Database integration for processed records
 - [ ] Confidence-based manual review flagging
@@ -450,10 +475,11 @@ Contributions are welcome! Please follow these steps:
 ### Development Guidelines
 
 - Follow PEP 8 for Python code style
-- Add test scripts for new pipeline components
-- Use Pydantic models for all API schemas
+- Add/extend tests under `tests/` (pure-logic parser tests run without the model)
+- Use Pydantic models for all API schemas (`model_config`, not legacy `class Config`)
 - Use type hints throughout the codebase
-- Keep ML model files tracked with Git LFS for large models
+- Mark any deliberate simplification with a `# shortcut:` comment naming its ceiling
+- Don't commit model weights or license scans — the model ships as a GitHub Release asset
 
 ---
 
@@ -464,7 +490,7 @@ This project is open source and available under the [MIT License](LICENSE).
 ---
 
 <p align="center">
-  <b>Built with ❤️ by <a href="https://github.com/Fairoos-palakkal">Fairoos Palakkal</a></b>
+  <b>Built with ❤️ by <a href="https://github.com/Faris-as">Faris-as</a></b>
   <br>
   <sub>If you found this project useful, please consider giving it a ⭐</sub>
 </p>
